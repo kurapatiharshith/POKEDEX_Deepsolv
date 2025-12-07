@@ -63,7 +63,7 @@ const AppContent = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.get("https://pokeapi.co/api/v2/pokemon?limit=150");
+      const res = await axios.get("https://pokeapi.co/api/v2/pokemon?limit=10000");
       setPokemonList(res.data.results);
     } catch (e) {
       setError("Failed to load Pokémon list");
