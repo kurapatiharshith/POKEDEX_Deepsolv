@@ -33,14 +33,12 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    // Only show all pokemon when the list is first loaded
     if (pokemonList.length > 0 && filteredList.length === 0) {
       setFilteredList(pokemonList);
     }
   }, [pokemonList]);
 
   useEffect(() => {
-    // Pre-cache all Pokémon data in the background for instant filtering
     if (pokemonList.length > 0) {
       preCachePokemonData();
     }
