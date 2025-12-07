@@ -24,6 +24,7 @@ const AppContent = () => {
     const savedUser = localStorage.getItem("google_user");
     return savedUser ? JSON.parse(savedUser) : null;
   });
+  const [pokemonCache, setPokemonCache] = useState({});
   const itemsPerPage = 12;
 
   useEffect(() => {
@@ -35,6 +36,13 @@ const AppContent = () => {
     // Only show all pokemon when the list is first loaded
     if (pokemonList.length > 0 && filteredList.length === 0) {
       setFilteredList(pokemonList);
+    }
+  }, [pokemonList]);
+
+  useEffect(() => {
+    // Pre-cache all Pokémon data in the background for instant filtering
+    if (pokemonList.length > 0) {
+      preCachePokemonData();
     }
   }, [pokemonList]);
 
@@ -82,6 +90,38 @@ const AppContent = () => {
     }
   };
 
+  const preCachePokemonData = async () => {
+    if (pokemonList.length === 0) return;
+    
+    const batchSize = 50;
+    let cached = { ...pokemonCache };
+    
+    for (let i = 0; i < pokemonList.length; i += batchSize) {
+      const batch = pokemonList.slice(i, i + batchSize);
+      
+      try {
+        const promises = batch.map(pokemon => {
+          if (cached[pokemon.name]) {
+            return Promise.resolve({ data: cached[pokemon.name] });
+          }
+          return axios.get(pokemon.url).catch(() => null);
+        });
+        
+        const results = await Promise.all(promises);
+        
+        results.forEach((res, idx) => {
+          if (res && res.data) {
+            cached[batch[idx].name] = res.data;
+          }
+        });
+        
+        setPokemonCache(cached);
+      } catch (e) {
+        console.log("Pre-caching error:", e);
+      }
+    }
+  };
+
   const filterPokemon = async () => {
     setIsFiltering(true);
     setCurrentPage(1);
@@ -94,19 +134,13 @@ const AppContent = () => {
     }
 
     if (selectedType !== "all") {
-      const typeFiltered = [];
-      for (let pokemon of filtered) {
-        try {
-          const res = await axios.get(pokemon.url);
-          const types = res.data.types.map((t) => t.type.name);
-          if (types.includes(selectedType)) {
-            typeFiltered.push(pokemon);
-          }
-        } catch (e) {
-          console.log(e);
-        }
-      }
-      filtered = typeFiltered;
+      filtered = filtered.filter((pokemon) => {
+        const cachedData = pokemonCache[pokemon.name];
+        if (!cachedData) return false;
+        
+        const types = cachedData.types.map((t) => t.type.name);
+        return types.includes(selectedType);
+      });
     }
 
     setFilteredList(filtered);
