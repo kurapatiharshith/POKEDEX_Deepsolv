@@ -19,6 +19,7 @@ const AppContent = () => {
   const [error, setError] = useState("");
   const [currentView, setCurrentView] = useState("home");
   const [favoritePokemonData, setFavoritePokemonData] = useState([]);
+  const [isFiltering, setIsFiltering] = useState(false);
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("google_user");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -31,12 +32,11 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    filterPokemon();
-  }, [searchTerm, selectedType, pokemonList]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedType]);
+    // Only show all pokemon when the list is first loaded
+    if (pokemonList.length > 0 && filteredList.length === 0) {
+      setFilteredList(pokemonList);
+    }
+  }, [pokemonList]);
 
   useEffect(() => {
     fetchFavoritePokemonDetails();
@@ -83,6 +83,8 @@ const AppContent = () => {
   };
 
   const filterPokemon = async () => {
+    setIsFiltering(true);
+    setCurrentPage(1);
     let filtered = pokemonList;
 
     if (searchTerm) {
@@ -108,6 +110,7 @@ const AppContent = () => {
     }
 
     setFilteredList(filtered);
+    setIsFiltering(false);
   };
 
   const toggleFavorite = (pokemonName) => {
@@ -286,6 +289,13 @@ const AppContent = () => {
               </select>
             </div>
 
+            <button 
+              className="filter-button" 
+              onClick={filterPokemon}
+              disabled={isFiltering}
+            >
+              {isFiltering ? "Filtering..." : "🔍 Apply Filter"}
+            </button>
           </div>
 
           {error && <p className="error">{error}</p>}
