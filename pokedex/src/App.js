@@ -4,7 +4,8 @@ import axios from "axios";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import Login from "./login";
 
-const GOOGLE_CLIENT_ID = "16397182920-ma27ebi8s6fm95ufckvmcdk8cfng5op7.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID =
+  "16397182920-ma27ebi8s6fm95ufckvmcdk8cfng5op7.apps.googleusercontent.com";
 
 const AppContent = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -13,7 +14,9 @@ const AppContent = () => {
   const [selectedType, setSelectedType] = useState("all");
   const [allTypes, setAllTypes] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [favorites, setFavorites] = useState(JSON.parse(localStorage.getItem("favorites")) || []);
+  const [favorites, setFavorites] = useState(
+    JSON.parse(localStorage.getItem("favorites")) || []
+  );
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +39,7 @@ const AppContent = () => {
     if (pokemonList.length > 0 && filteredList.length === 0) {
       setFilteredList(pokemonList);
     }
-  }, [pokemonList]);
+  }, [pokemonList, filteredList.length]);
 
   useEffect(() => {
     if (pokemonList.length > 0) {
@@ -69,7 +72,9 @@ const AppContent = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.get("https://pokeapi.co/api/v2/pokemon?limit=10000");
+      const res = await axios.get(
+        "https://pokeapi.co/api/v2/pokemon?limit=10000"
+      );
       setPokemonList(res.data.results);
     } catch (e) {
       setError("Failed to load Pokémon list");
@@ -90,29 +95,29 @@ const AppContent = () => {
 
   const preCachePokemonData = async () => {
     if (pokemonList.length === 0) return;
-    
+
     const batchSize = 50;
     let cached = { ...pokemonCache };
-    
+
     for (let i = 0; i < pokemonList.length; i += batchSize) {
       const batch = pokemonList.slice(i, i + batchSize);
-      
+
       try {
-        const promises = batch.map(pokemon => {
+        const promises = batch.map((pokemon) => {
           if (cached[pokemon.name]) {
             return Promise.resolve({ data: cached[pokemon.name] });
           }
           return axios.get(pokemon.url).catch(() => null);
         });
-        
+
         const results = await Promise.all(promises);
-        
+
         results.forEach((res, idx) => {
           if (res && res.data) {
             cached[batch[idx].name] = res.data;
           }
         });
-        
+
         setPokemonCache(cached);
       } catch (e) {
         console.log("Pre-caching error:", e);
@@ -135,7 +140,7 @@ const AppContent = () => {
       filtered = filtered.filter((pokemon) => {
         const cachedData = pokemonCache[pokemon.name];
         if (!cachedData) return false;
-        
+
         const types = cachedData.types.map((t) => t.type.name);
         return types.includes(selectedType);
       });
@@ -180,7 +185,9 @@ const AppContent = () => {
   };
 
   const totalPages = Math.ceil(filteredList.length / itemsPerPage);
-  const favoriteTotalPages = Math.ceil(favoritePokemonData.length / itemsPerPage);
+  const favoriteTotalPages = Math.ceil(
+    favoritePokemonData.length / itemsPerPage
+  );
 
   const closeModal = () => {
     setSelectedPokemon(null);
@@ -210,7 +217,9 @@ const AppContent = () => {
       <div className="user-profile">
         <img src={user.picture} alt={user.name} className="profile-pic-small" />
         <span>{user.name}</span>
-        <button className="logout-btn" onClick={handleLogout}>Logout</button>
+        <button className="logout-btn" onClick={handleLogout}>
+          Logout
+        </button>
       </div>
       <h1>🔴 Pokédex 🔴</h1>
 
@@ -252,8 +261,8 @@ const AppContent = () => {
           </div>
 
           <div className="home-stats">
-            <div 
-              className="stat-card" 
+            <div
+              className="stat-card"
               onClick={() => {
                 setCurrentView("browse");
                 setCurrentPage(1);
@@ -263,7 +272,8 @@ const AppContent = () => {
               <h3>📚 Total Pokémon</h3>
               <p className="stat-number">{pokemonList.length}</p>
             </div>
-            <div 
+
+            <div
               className="stat-card"
               onClick={() => {
                 setCurrentView("favorites");
@@ -273,6 +283,11 @@ const AppContent = () => {
             >
               <h3>❤️ Your Favorites</h3>
               <p className="stat-number">{favorites.length}</p>
+            </div>
+
+            <div className="stat-card" style={{ cursor: "default" }}>
+              <h3>🎯 Types</h3>
+              <p className="stat-number">{allTypes.length}</p>
             </div>
           </div>
 
@@ -331,8 +346,8 @@ const AppContent = () => {
               </select>
             </div>
 
-            <button 
-              className="filter-button" 
+            <button
+              className="filter-button"
               onClick={filterPokemon}
               disabled={isFiltering}
             >
@@ -347,7 +362,9 @@ const AppContent = () => {
             {getPaginatedData().map((pokemon) => (
               <div key={pokemon.name} className="pokemon-card">
                 <img
-                  src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.url.split("/")[6]}.png`}
+                  src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${
+                    pokemon.url.split("/")[6]
+                  }.png`}
                   alt={pokemon.name}
                   onClick={() => fetchPokemonDetails(pokemon.name)}
                   className="pokemon-image"
@@ -374,7 +391,9 @@ const AppContent = () => {
           {filteredList.length > 0 && (
             <div className="pagination">
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.max(1, prev - 1))
+                }
                 disabled={currentPage === 1}
                 className="pagination-btn"
               >
@@ -384,7 +403,9 @@ const AppContent = () => {
                 Page {currentPage} of {totalPages}
               </span>
               <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
                 disabled={currentPage === totalPages}
                 className="pagination-btn"
               >
@@ -398,7 +419,9 @@ const AppContent = () => {
           <div className="favorites-header">
             <h2>Your Favorite Pokémon ({favorites.length})</h2>
             {favorites.length === 0 && (
-              <p className="no-favorites">No favorites yet! Add some Pokémon to your favorites.</p>
+              <p className="no-favorites">
+                No favorites yet! Add some Pokémon to your favorites.
+              </p>
             )}
           </div>
 
@@ -415,7 +438,7 @@ const AppContent = () => {
                     />
                     <h3>{pokemon.name.toUpperCase()}</h3>
                     <button
-                      className={`favorite-btn active`}
+                      className="favorite-btn active"
                       onClick={() => toggleFavorite(pokemon.name)}
                     >
                       ★
@@ -433,7 +456,9 @@ const AppContent = () => {
               {favoritePokemonData.length > 0 && (
                 <div className="pagination">
                   <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
                     disabled={currentPage === 1}
                     className="pagination-btn"
                   >
@@ -443,7 +468,11 @@ const AppContent = () => {
                     Page {currentPage} of {favoriteTotalPages}
                   </span>
                   <button
-                    onClick={() => setCurrentPage(Math.min(favoriteTotalPages, currentPage + 1))}
+                    onClick={() =>
+                      setCurrentPage((prev) =>
+                        Math.min(favoriteTotalPages, prev + 1)
+                      )
+                    }
                     disabled={currentPage === favoriteTotalPages}
                     className="pagination-btn"
                   >
@@ -481,7 +510,9 @@ const AppContent = () => {
                   </div>
                   <div className="detail-item">
                     <span className="label">Weight:</span>
-                    <span>{Math.round(selectedPokemon.weight / 4.3)} lbs</span>
+                    <span>
+                      {Math.round(selectedPokemon.weight / 4.3)} lbs
+                    </span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Type(s):</span>
