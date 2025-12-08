@@ -252,15 +252,36 @@ const AppContent = () => {
           </div>
 
           <div className="home-stats">
-            <div className="stat-card">
+            <div 
+              className="stat-card" 
+              onClick={() => {
+                setCurrentView("browse");
+                setCurrentPage(1);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <h3>📚 Total Pokémon</h3>
               <p className="stat-number">{pokemonList.length}</p>
             </div>
-            <div className="stat-card">
+            <div 
+              className="stat-card"
+              onClick={() => {
+                setCurrentView("favorites");
+                setCurrentPage(1);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <h3>❤️ Your Favorites</h3>
               <p className="stat-number">{favorites.length}</p>
             </div>
-            <div className="stat-card">
+            <div 
+              className="stat-card"
+              onClick={() => {
+                setCurrentView("browse");
+                setCurrentPage(1);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <h3>🎯 Types Available</h3>
               <p className="stat-number">{allTypes.length}</p>
             </div>
