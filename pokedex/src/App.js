@@ -25,6 +25,8 @@ const AppContent = () => {
     return savedUser ? JSON.parse(savedUser) : null;
   });
   const [pokemonCache, setPokemonCache] = useState({});
+  const [selectedTypeView, setSelectedTypeView] = useState(null);
+  const [typePokemonList, setTypePokemonList] = useState([]);
   const itemsPerPage = 12;
 
   useEffect(() => {
@@ -117,6 +119,24 @@ const AppContent = () => {
       } catch (e) {
         console.log("Pre-caching error:", e);
       }
+    }
+  };
+
+  const fetchTypePokemon = async (typeName) => {
+    try {
+      setLoading(true);
+      const res = await axios.get(`https://pokeapi.co/api/v2/type/${typeName}`);
+      const pokemonByType = res.data.pokemon.map(p => ({
+        name: p.pokemon.name,
+        url: p.pokemon.url
+      }));
+      setTypePokemonList(pokemonByType);
+      setSelectedTypeView(typeName);
+      setCurrentPage(1);
+    } catch (e) {
+      console.log("Error fetching type pokémon:", e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,6 +262,15 @@ const AppContent = () => {
         >
           ★ Favorites ({favorites.length})
         </button>
+        <button
+          className={`nav-tab ${currentView === "types" ? "active" : ""}`}
+          onClick={() => {
+            setCurrentView("types");
+            setCurrentPage(1);
+          }}
+        >
+          🎯 Types
+        </button>
       </div>
 
       {currentView === "home" && (
@@ -277,7 +306,7 @@ const AppContent = () => {
             <div 
               className="stat-card"
               onClick={() => {
-                setCurrentView("browse");
+                setCurrentView("types");
                 setCurrentPage(1);
               }}
               style={{ cursor: "pointer" }}
@@ -465,6 +494,97 @@ const AppContent = () => {
             </>
           )}
         </>
+      )}
+
+      {currentView === "types" && (
+        <div className="types-page">
+          {selectedTypeView ? (
+            <>
+              <div className="type-view-header">
+                <button 
+                  className="back-btn"
+                  onClick={() => setSelectedTypeView(null)}
+                >
+                  ← Back to Types
+                </button>
+                <h2>{selectedTypeView.toUpperCase()} Pokémon ({typePokemonList.length})</h2>
+              </div>
+
+              {loading && <p className="loading">Loading {selectedTypeView} Pokémon...</p>}
+
+              <div className="pokemon-grid">
+                {typePokemonList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((pokemon) => (
+                  <div key={pokemon.name} className="pokemon-card">
+                    <img
+                      src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.url.split("/")[6]}.png`}
+                      alt={pokemon.name}
+                      onClick={() => fetchPokemonDetails(pokemon.name)}
+                      className="pokemon-image"
+                    />
+                    <h3>{pokemon.name.toUpperCase()}</h3>
+                    <button
+                      className={`favorite-btn ${
+                        favorites.includes(pokemon.name) ? "active" : ""
+                      }`}
+                      onClick={() => toggleFavorite(pokemon.name)}
+                    >
+                      {favorites.includes(pokemon.name) ? "★" : "☆"}
+                    </button>
+                    <button
+                      className="details-btn"
+                      onClick={() => fetchPokemonDetails(pokemon.name)}
+                    >
+                      View Details
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {typePokemonList.length > itemsPerPage && (
+                <div className="pagination">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="pagination-btn"
+                  >
+                    ← Previous
+                  </button>
+                  <span className="pagination-info">
+                    Page {currentPage} of {Math.ceil(typePokemonList.length / itemsPerPage)}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(Math.ceil(typePokemonList.length / itemsPerPage), currentPage + 1))}
+                    disabled={currentPage === Math.ceil(typePokemonList.length / itemsPerPage)}
+                    className="pagination-btn"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="types-header">
+                <h2>All Pokémon Types ({allTypes.length})</h2>
+                <p>Click on a type to view all Pokémon of that type</p>
+              </div>
+
+              <div className="types-grid">
+                {allTypes.map((type) => (
+                  <div 
+                    key={type.name} 
+                    className="type-card"
+                    onClick={() => fetchTypePokemon(type.name)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <h3>{type.name.toUpperCase()}</h3>
+                    <span className="type-icon">→</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {selectedPokemon && (
