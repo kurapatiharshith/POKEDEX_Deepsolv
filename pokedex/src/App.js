@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
 import axios from "axios";
 import { GoogleOAuthProvider } from "@react-oauth/google";
@@ -24,6 +24,7 @@ const AppContent = () => {
     const savedUser = localStorage.getItem("google_user");
     return savedUser ? JSON.parse(savedUser) : null;
   });
+  const [pokemonCache, setPokemonCache] = useState({});
   const itemsPerPage = 12;
 
   useEffect(() => {
@@ -38,18 +39,14 @@ const AppContent = () => {
   }, [pokemonList]);
 
   useEffect(() => {
+    if (pokemonList.length > 0) {
+      preCachePokemonData();
+    }
+  }, [pokemonList]);
+
+  useEffect(() => {
     fetchFavoritePokemonDetails();
   }, [favorites]);
-
-  // Debounced search effect for instant name filtering
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (currentView === "browse") {
-        handleQuickSearch();
-      }
-    }, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
 
   const fetchFavoritePokemonDetails = async () => {
     if (favorites.length === 0) {
@@ -72,7 +69,6 @@ const AppContent = () => {
     setLoading(true);
     setError("");
     try {
-      // Limit to first 1000 for better performance
       const res = await axios.get("https://pokeapi.co/api/v2/pokemon?limit=10000");
       setPokemonList(res.data.results);
     } catch (e) {
@@ -92,61 +88,64 @@ const AppContent = () => {
     }
   };
 
-  // FAST SEARCH: Client-side name filtering (instant)
-  const handleQuickSearch = useCallback(() => {
-    if (!searchTerm || selectedType === "all") {
-      const filtered = pokemonList.filter((p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredList(filtered);
-      setCurrentPage(1);
+  const preCachePokemonData = async () => {
+    if (pokemonList.length === 0) return;
+    
+    const batchSize = 50;
+    let cached = { ...pokemonCache };
+    
+    for (let i = 0; i < pokemonList.length; i += batchSize) {
+      const batch = pokemonList.slice(i, i + batchSize);
+      
+      try {
+        const promises = batch.map(pokemon => {
+          if (cached[pokemon.name]) {
+            return Promise.resolve({ data: cached[pokemon.name] });
+          }
+          return axios.get(pokemon.url).catch(() => null);
+        });
+        
+        const results = await Promise.all(promises);
+        
+        results.forEach((res, idx) => {
+          if (res && res.data) {
+            cached[batch[idx].name] = res.data;
+          }
+        });
+        
+        setPokemonCache(cached);
+      } catch (e) {
+        console.log("Pre-caching error:", e);
+      }
     }
-  }, [pokemonList, searchTerm]);
+  };
 
-  // SUPER FAST TYPE FILTER: Uses PokeAPI type endpoint directly
-  const filterByType = useCallback(async () => {
+  const filterPokemon = async () => {
     setIsFiltering(true);
     setCurrentPage(1);
-    
-    try {
-      if (selectedType === "all") {
-        setFilteredList(pokemonList);
-        return;
-      }
+    let filtered = pokemonList;
 
-      // Use PokeAPI type endpoint - returns pre-filtered list (50-200 pokemon max)
-      const res = await axios.get(`https://pokeapi.co/api/v2/type/${selectedType}`);
-      const typePokemon = res.data.pokemon.map(p => ({
-        name: p.pokemon.name,
-        url: p.pokemon.url
-      }));
-      
-      // Apply search term if present
-      const finalFiltered = searchTerm 
-        ? typePokemon.filter(p => 
-            p.name.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        : typePokemon;
-      
-      setFilteredList(finalFiltered);
-    } catch (e) {
-      console.error("Type filter failed:", e);
-      setFilteredList([]);
-    } finally {
-      setIsFiltering(false);
+    if (searchTerm) {
+      filtered = filtered.filter((p) =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
-  }, [selectedType, searchTerm, pokemonList]);
 
-  // Combined filter - handles both search + type instantly
-  const filterPokemon = useCallback(async () => {
-    if (selectedType === "all") {
-      handleQuickSearch();
-    } else {
-      await filterByType();
+    if (selectedType !== "all") {
+      filtered = filtered.filter((pokemon) => {
+        const cachedData = pokemonCache[pokemon.name];
+        if (!cachedData) return false;
+        
+        const types = cachedData.types.map((t) => t.type.name);
+        return types.includes(selectedType);
+      });
     }
-  }, [handleQuickSearch, filterByType]);
 
-  const toggleFavorite = useCallback((pokemonName) => {
+    setFilteredList(filtered);
+    setIsFiltering(false);
+  };
+
+  const toggleFavorite = (pokemonName) => {
     let updated = [...favorites];
     if (updated.includes(pokemonName)) {
       updated = updated.filter((p) => p !== pokemonName);
@@ -155,7 +154,7 @@ const AppContent = () => {
     }
     setFavorites(updated);
     localStorage.setItem("favorites", JSON.stringify(updated));
-  }, [favorites]);
+  };
 
   const fetchPokemonDetails = async (pokemonName) => {
     try {
@@ -197,15 +196,6 @@ const AppContent = () => {
     localStorage.removeItem("google_user");
   };
 
-  // Reset filters when switching to browse
-  const handleBrowseView = () => {
-    setCurrentView("browse");
-    setCurrentPage(1);
-    setFilteredList(pokemonList);
-    setSearchTerm("");
-    setSelectedType("all");
-  };
-
   if (!user) {
     return (
       <div className="App">
@@ -232,11 +222,14 @@ const AppContent = () => {
             setCurrentPage(1);
           }}
         >
-           Home
+          Home
         </button>
         <button
           className={`nav-tab ${currentView === "browse" ? "active" : ""}`}
-          onClick={handleBrowseView}
+          onClick={() => {
+            setCurrentView("browse");
+            setCurrentPage(1);
+          }}
         >
           Browse
         </button>
@@ -259,32 +252,49 @@ const AppContent = () => {
           </div>
 
           <div className="home-stats">
-            <div className="stat-card">
+            <div 
+              className="stat-card" 
+              onClick={() => {
+                setCurrentView("browse");
+                setCurrentPage(1);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <h3>📚 Total Pokémon</h3>
               <p className="stat-number">{pokemonList.length}</p>
             </div>
-            <div className="stat-card">
+            <div 
+              className="stat-card"
+              onClick={() => {
+                setCurrentView("favorites");
+                setCurrentPage(1);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <h3>❤️ Your Favorites</h3>
               <p className="stat-number">{favorites.length}</p>
-            </div>
-            <div className="stat-card">
-              <h3>🎯 Types Available</h3>
-              <p className="stat-number">{allTypes.length}</p>
             </div>
           </div>
 
           <div className="home-features">
-            <h3>⚡ Super Fast Filters</h3>
+            <h3>Features</h3>
             <ul>
-              <li>🔍 Instant name search</li>
-              <li>⚡ Type filtering via API (50ms)</li>
-              <li>❤️ Favorites sync instantly</li>
-              <li>📱 Fully responsive</li>
+              <li>🔍 Search Pokémon by name</li>
+              <li>🏷️ Filter by type</li>
+              <li>❤️ Save your favorite Pokémon</li>
+              <li>📋 View detailed Pokémon information</li>
+              <li>📱 Fully responsive design</li>
             </ul>
           </div>
 
           <div className="home-cta">
-            <button className="cta-button" onClick={handleBrowseView}>
+            <button
+              className="cta-button"
+              onClick={() => {
+                setCurrentView("browse");
+                setCurrentPage(1);
+              }}
+            >
               Start Browsing →
             </button>
           </div>
@@ -297,7 +307,7 @@ const AppContent = () => {
             <div className="search-section">
               <input
                 type="text"
-                placeholder="Search Pokémon... (instant)"
+                placeholder="Search Pokémon..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="search-input"
@@ -309,10 +319,7 @@ const AppContent = () => {
               <select
                 id="type-filter"
                 value={selectedType}
-                onChange={(e) => {
-                  setSelectedType(e.target.value);
-                  filterPokemon();
-                }}
+                onChange={(e) => setSelectedType(e.target.value)}
                 className="type-filter"
               >
                 <option value="all">All Types</option>
@@ -329,13 +336,12 @@ const AppContent = () => {
               onClick={filterPokemon}
               disabled={isFiltering}
             >
-              {isFiltering ? "🔄 Filtering..." : "🔍 Apply Filters"}
+              {isFiltering ? "Filtering..." : "🔍 Apply Filter"}
             </button>
           </div>
 
           {error && <p className="error">{error}</p>}
-          {loading && <p className="loading">Loading Pokémon...</p>}
-          {isFiltering && <p className="loading">Filtering... (super fast!)</p>}
+          {loading && <p className="loading">Loading...</p>}
 
           <div className="pokemon-grid">
             {getPaginatedData().map((pokemon) => (
@@ -348,7 +354,9 @@ const AppContent = () => {
                 />
                 <h3>{pokemon.name.toUpperCase()}</h3>
                 <button
-                  className={`favorite-btn ${favorites.includes(pokemon.name) ? "active" : ""}`}
+                  className={`favorite-btn ${
+                    favorites.includes(pokemon.name) ? "active" : ""
+                  }`}
                   onClick={() => toggleFavorite(pokemon.name)}
                 >
                   {favorites.includes(pokemon.name) ? "★" : "☆"}
@@ -373,7 +381,7 @@ const AppContent = () => {
                 ← Previous
               </button>
               <span className="pagination-info">
-                Page {currentPage} of {totalPages} ({filteredList.length} total)
+                Page {currentPage} of {totalPages}
               </span>
               <button
                 onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
@@ -385,7 +393,7 @@ const AppContent = () => {
             </div>
           )}
         </>
-      ) : currentView === "favorites" ? (
+      ) : (
         <>
           <div className="favorites-header">
             <h2>Your Favorite Pokémon ({favorites.length})</h2>
@@ -422,34 +430,38 @@ const AppContent = () => {
                 ))}
               </div>
 
-              <div className="pagination">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="pagination-btn"
-                >
-                  ← Previous
-                </button>
-                <span className="pagination-info">
-                  Page {currentPage} of {favoriteTotalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage(Math.min(favoriteTotalPages, currentPage + 1))}
-                  disabled={currentPage === favoriteTotalPages}
-                  className="pagination-btn"
-                >
-                  Next →
-                </button>
-              </div>
+              {favoritePokemonData.length > 0 && (
+                <div className="pagination">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="pagination-btn"
+                  >
+                    ← Previous
+                  </button>
+                  <span className="pagination-info">
+                    Page {currentPage} of {favoriteTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(favoriteTotalPages, currentPage + 1))}
+                    disabled={currentPage === favoriteTotalPages}
+                    className="pagination-btn"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </>
           )}
         </>
-      ) : null}
+      )}
 
       {selectedPokemon && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-btn" onClick={closeModal}>✕</button>
+            <button className="close-btn" onClick={closeModal}>
+              ✕
+            </button>
             <div className="modal-body">
               <img
                 src={selectedPokemon.sprites.front_default}
