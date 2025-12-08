@@ -277,7 +277,7 @@ const AppContent = () => {
         <div className="home-page">
           <div className="home-hero">
             <h2>Welcome to Pokédex! 🎮</h2>
-            <p>Explore and discover all Pokémon from the Kanto region</p>
+            <p>Explore and discover all Pokémon from the Pokemon World</p>
           </div>
 
           <div className="home-stats">
